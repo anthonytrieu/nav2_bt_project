@@ -1,3 +1,4 @@
+import time
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import BatteryState
@@ -41,18 +42,32 @@ class BatterySimulator(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
-    node = BatterySimulator()
-    try:
-        rclpy.spin(node)
-    except (KeyboardInterrupt, rclpy._rclpy_pybind11.RCLError):
-        pass
-    finally:
-        node.destroy_node()
+    max_retries = 3
+    for attempt in range(max_retries):
         try:
-            rclpy.shutdown()
-        except Exception:
-            pass
+            rclpy.init(args=args)
+            node = BatterySimulator()
+            rclpy.spin(node)
+            break
+        except KeyboardInterrupt:
+            break
+        except (rclpy._rclpy_pybind11.RCLError,
+                rclpy.executors.ExternalShutdownException) as e:
+            if attempt < max_retries - 1:
+                print(f'[battery_simulator] ROS context error, retrying in 2s '
+                      f'(attempt {attempt + 1}/{max_retries})')
+                time.sleep(2.0)
+            else:
+                print('[battery_simulator] Failed after all retries')
+        finally:
+            try:
+                node.destroy_node()
+            except Exception:
+                pass
+            try:
+                rclpy.shutdown()
+            except Exception:
+                pass
 
 
 if __name__ == '__main__':
